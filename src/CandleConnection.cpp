@@ -48,10 +48,10 @@ bool CandleConnection::canReadLine() {
 }
 QByteArray CandleConnection::readLine() {
     if(m_connType == CONN_SERIAL) {
-        return static_cast<QSerialPort*>(m_connImpl)->readLine();
+        return static_cast<QSerialPort*>(m_connImpl)->readLine(100);
     } else
     if(m_connType == CONN_TCPIP) {
-        return static_cast<QTcpSocket*>(m_connImpl)->readLine();
+        return static_cast<QTcpSocket*>(m_connImpl)->readLine(100);
     }
     return "";
 }

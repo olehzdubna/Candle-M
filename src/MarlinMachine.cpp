@@ -15,7 +15,11 @@ MarlinMachine::MarlinMachine(frmMain* frm, Ui::frmMain* ui, CandleConnection& co
 
 void MarlinMachine::onReadyRead(){
 
+    qDebug() << "+++ MarlinMachine::onReadyRead, before while";
+
     while (m_connection.canReadLine()) {
+        qDebug() << "+++ MarlinMachine::onReadyRead, before";
+
         QString data = m_connection.readLine().trimmed();
 
         qDebug() << "+++ MarlinMachine::onReadyRead:" << data;
