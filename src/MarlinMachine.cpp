@@ -14,15 +14,8 @@ MarlinMachine::MarlinMachine(frmMain* frm, Ui::frmMain* ui, CandleConnection& co
 {}
 
 void MarlinMachine::onReadyRead(){
-
-    qDebug() << "+++ MarlinMachine::onReadyRead, before while";
-
     while (m_connection.canReadLine()) {
-        qDebug() << "+++ MarlinMachine::onReadyRead, before";
-
         QString data = m_connection.readLine().trimmed();
-
-        qDebug() << "+++ MarlinMachine::onReadyRead:" << data;
 
         if(data.length() > 0) {
 
@@ -163,6 +156,68 @@ void MarlinMachine::onReadyRead(){
                                 m_ui->tblProgram->setCurrentIndex(m_frm->currentModel()->index(ca.tableIndex, 1));
                             }
                         }
+
+                        GcodeViewParse *parser = m_frm->currentDrawer()->viewParser();
+                        QList<LineSegment*> list = parser->getLineSegmentList();
+
+                        // Store work offset
+                        static QVector3D workOffset;
+
+                        //m_lastDrawnLineIndex = m_frm->currentModel()->data(m_frm->currentModel()->index(m_fileProcessedCommandIndex, 4)).toInt();
+                        m_lastDrawnLineIndex = m_fileProcessedCommandIndex;
+
+                        auto vec = list.at(m_lastDrawnLineIndex)->getStart();
+
+                        m_ui->txtMPosX->setText(QString::number(vec.x(), 'f', 3));
+                        m_ui->txtMPosY->setText(QString::number(vec.y(), 'f', 3));
+                        m_ui->txtMPosZ->setText(QString::number(vec.z(), 'f', 3));
+
+                        workOffset = QVector3D(0.0, 0.0, 0.0);
+
+                        // Update work coordinates
+                        int prec = m_frm->settings()->units() == 0 ? 3 : 4;
+                        m_ui->txtWPosX->setText(QString::number(m_ui->txtMPosX->text().toDouble() - workOffset.x(), 'f', prec));
+                        m_ui->txtWPosY->setText(QString::number(m_ui->txtMPosY->text().toDouble() - workOffset.y(), 'f', prec));
+                        m_ui->txtWPosZ->setText(QString::number(m_ui->txtMPosZ->text().toDouble() - workOffset.z(), 'f', prec));
+
+                        // Update tool position
+                        QVector3D toolPosition;
+                        if (m_lastDrawnLineIndex < m_frm->currentModel()->rowCount() - 1) {
+                            toolPosition = QVector3D(toMetric(m_ui->txtWPosX->text().toDouble()),
+                                                     toMetric(m_ui->txtWPosY->text().toDouble()),
+                                                     toMetric(m_ui->txtWPosZ->text().toDouble()));
+                            m_frm->toolDrawer().setToolPosition(m_frm->codeDrawer()->getIgnoreZ() ? QVector3D(toolPosition.x(), toolPosition.y(), 0) : toolPosition);
+                        }
+
+                        // toolpath shadowing
+                            bool toolOntoolpath = false;
+
+                            QList<int> drawnLines;
+
+                            for (int i = m_lastDrawnLineIndex; i < list.count()
+                                 && list.at(i)->getLineNumber()
+                                 <= (m_frm->currentModel()->data(m_frm->currentModel()->index(m_fileProcessedCommandIndex, 4)).toInt() + 1); i++) {
+                                if (list.at(i)->contains(toolPosition)) {
+                                    toolOntoolpath = true;
+                                    m_lastDrawnLineIndex = i;
+                                    break;
+                                }
+                                drawnLines << i;
+                            }
+
+                            if (toolOntoolpath) {
+                                foreach (int i, drawnLines) {
+                                    list.at(i)->setDrawn(true);
+                                }
+                                if (!drawnLines.isEmpty())
+                                    m_frm->currentDrawer()->update(drawnLines);
+                            } else
+                                if (m_lastDrawnLineIndex < list.count()) {
+                                    qDebug() << "tool missed:" << list.at(m_lastDrawnLineIndex)->getLineNumber()
+                                             << m_frm->currentModel()->data(m_frm->currentModel()->index(m_fileProcessedCommandIndex, 4)).toInt()
+                                             << m_fileProcessedCommandIndex;
+                            }
+
 
                         // Update taskbar progress
 #ifdef WINDOWS

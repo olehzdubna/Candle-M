@@ -1,0 +1,37 @@
+M503
+echo:  G21    ; Units in mm (mm)
+echo:  M149 C ; Units in Celsius
+
+echo:; Steps per unit:
+echo: M92 X1600.00 Y1600.00 Z4000.00 E500.00
+echo:; Maximum feedrates (units/s):
+echo:  M203 X100.00 Y100.00 Z15.00 E25.00
+echo:; Maximum Acceleration (units/s2):
+echo:  M201 X200.00 Y200.00 Z100.00 E10000.00
+echo:; Acceleration (units/s2): P<print_accel> R T
+echo:  M204 P200.00 R200.00 T200.00
+echo:; Advanced: B S T J
+echo:  M205 B20000.00 S0.00 T0.00 J0.01
+echo:; Home offset:
+echo:  M206 X10.00 Y0.00 Z0.00
+echo:; Auto Bed Leveling:
+echo:  M420 S0 Z10.00
+echo:  G29 W I0 J0 Z0.10875
+echo:  G29 W I1 J0 Z-0.12700
+echo:  G29 W I2 J0 Z-0.24300
+echo:  G29 W I0 J1 Z0.19950
+echo:  G29 W I1 J1 Z0.01075
+echo:  G29 W I2 J1 Z-0.01250
+echo:  G29 W I0 J2 Z0.37400
+echo:  G29 W I1 J2 Z0.22000
+echo:  G29 W I2 J2 Z0.24725
+echo:; Z-Probe Offset (mm):
+echo:  M851 X0 Y0 Z0.00
+echo:; Stepper driver current:
+echo:  M906 X2500 Y2500
+echo:  M906 I1 Y2500
+
+echo:; Driver stepping mode:
+ok
+
+

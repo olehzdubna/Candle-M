@@ -708,8 +708,6 @@ void frmMain::openPort()
 
 void frmMain::onCommReadyRead()
 {
-    qDebug() << "+++ frmMain::onCommReadyRead()";
-
     m_machine->onReadyRead();
 }
 
