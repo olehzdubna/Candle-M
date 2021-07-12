@@ -658,7 +658,7 @@ void GrblMachine::onTimerConnection()
 {
     if (!m_connection.isOpen()) {
 //        openPort();
-    } else if (!m_homing/* && !m_reseting*/ && !m_ui->cmdFilePause->isChecked() && m_queue.length() == 0) {
+    } else if (!m_homing && !m_reseting && !m_ui->cmdFilePause->isChecked() && m_queue.length() == 0) {
         if (m_updateSpindleSpeed) {
             m_updateSpindleSpeed = false;
             sendCommand(QString("S%1").arg(m_ui->slbSpindle->value()), -2, m_frm->settings()->showUICommands());

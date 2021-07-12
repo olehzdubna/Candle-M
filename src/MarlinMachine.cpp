@@ -11,27 +11,153 @@
 
 MarlinMachine::MarlinMachine(frmMain* frm, Ui::frmMain* ui, CandleConnection& connection)
     : Machine(frm, ui, connection)
-{}
+{
+    // From Marlin code.
+    enum M_StateEnum : int8_t {
+      M_INIT = 0, //  0 machine is initializing
+      M_RESET,    //  1 machine is ready for use
+      M_ALARM,    //  2 machine is in alarm state (soft shut down)
+      M_IDLE,     //  3 program stop or no more blocks (M0, M1, M60)
+      M_END,      //  4 program end via M2, M30
+      M_RUNNING,  //  5 motion is running
+      M_HOLD,     //  6 motion is holding
+      M_PROBE,    //  7 probe cycle active
+      M_CYCLING,  //  8 machine is running (cycling)
+      M_HOMING,   //  9 machine is homing
+      M_JOGGING,  // 10 machine is jogging
+      M_ERROR     // 11 machine is in hard alarm state (shut down)
+    };
+
+    m_status << "Init"
+             << "Reset"
+             << "Alarm"
+             << "Idle"
+             << "End"
+             << "Running"
+             << "Hold"
+             << "Probe"
+             << "Cycling"
+             << "Homing"
+             << "Jogging"
+             << "Error";
+
+    m_statusCaptions << tr("Init")
+                     << tr("Reset")
+                     << tr("Alarm")
+                     << tr("Idle")
+                     << tr("End")
+                     << tr("Running")
+                     << tr("Hold")
+                     << tr("Probe")
+                     << tr("Cycling")
+                     << tr("Homing")
+                     << tr("Jogging")
+                     << tr("Error");
+
+    m_statusBackColors << "palette(button)"
+                      << "palette(button)"
+                      << "red"
+                      << "palette(button)"
+                      << "yellow"
+                      << "lime"
+                      << "yellow"
+                      << "yellow"
+                      << "yellow"
+                      << "lime"
+                      << "lime"
+                      << "red";
+   m_statusForeColors << "palette(text)"
+                      << "palette(text)"
+                      << "white"
+                      << "palette(text)"
+                      << "black"
+                      << "black"
+                      << "black"
+                      << "black"
+                      << "black"
+                      << "black"
+                      << "white";
+}
+
+void MarlinMachine::parseResponse(const QString& data) {
+    int status = UNKNOWN;
+
+    qDebug() << "+++ parseResponse: " << data;
+
+    m_statusReceived = true;
+
+    // Update machine coordinates
+    static QRegExp mpx("X:([^\\s]*)\\sY:([^\\s]*)\\sZ:([^\\s]*)");
+    static QRegExp stx("S_XYZ:([\\d]*)");
+    static QRegExp tmcs("X:([^\\t.+]*)\\tY:([^\\t.+]*)\\t");
+    static QRegExp echx0("echo:([^:]*)");
+    static QRegExp echx1("echo:([^:]*):([^:]*)");
+
+    if (mpx.indexIn(data) != -1) {
+
+        qDebug() << "+++ X:Y:Z: " << mpx.cap(1) << ", " << mpx.cap(2);
+
+        m_ui->txtMPosX->setText(mpx.cap(1));
+        m_ui->txtMPosY->setText(mpx.cap(2));
+        m_ui->txtMPosZ->setText(mpx.cap(3));
+    } else
+    // TMC driver status
+    if (tmcs.indexIn(data) != -1) {
+        qDebug() << "+++ TMC X:Y:Z: " << tmcs.cap(1) << ", " << tmcs.cap(2) << ", " << tmcs.cap(3);
+    } else
+    // Status
+    if (stx.indexIn(data) != -1) {
+
+        qDebug() << "+++ S_XYZ: " << stx.cap(1) << ", " << stx.captureCount();
+
+        status = stx.cap(1).toInt();
+        if(status < 0 || status > m_status.size())
+                status = 0;
+
+        // Update status
+        if (status != m_lastMarlinStatus) {
+            m_ui->txtStatus->setText(m_statusCaptions[status]);
+            m_ui->txtStatus->setStyleSheet(QString("background-color: %1; color: %2;")
+                                         .arg(m_statusBackColors[status]).arg(m_statusForeColors[status]));
+        }
+
+        m_lastMarlinStatus = status;
+    } else
+    if (echx0.indexIn(data) != -1) {
+        qDebug() << "+++ ECHO: " << echx0.cap(1) << ", " << echx0.captureCount();
+    } else
+    if (echx1.indexIn(data) != -1) {
+        qDebug() << "+++ ECHO: " << echx1.cap(1) << ", " << echx1.cap(2) << ", " << echx1.captureCount();
+    } else {
+        response.append(data + ";");
+    }
+}
 
 void MarlinMachine::onReadyRead(){
     while (m_connection.canReadLine()) {
-        QString data = m_connection.readLine().trimmed();
+        QString rcvData = m_connection.readLine().trimmed();
 
-        if(data.length() > 0) {
+        qDebug() << "+++ DATA:" << rcvData;
+
+        if(rcvData.length() > 0) {
 
             // Processed commands
             if (m_commands.length() > 0) {
 
-                static QString response; // Full response string
-
-                if ((m_commands[0].command != "[CTRL+X]" && dataIsEnd(data))) {
-
-                    response.append(data);
+                if (dataIsCmdResponse(rcvData)) {
+                    response.append(rcvData); // Add "ok" to the response
 
                     // Take command from buffer
                     CommandAttributes ca = m_commands.takeFirst();
                     QTextBlock tb = m_ui->txtConsole->document()->findBlockByNumber(ca.consoleIndex);
                     QTextCursor tc(tb);
+
+                    qDebug() << "+++ COMMAND:" << ca.command << ", ca.tableIndex:"<< ca.tableIndex;
+
+                    // Restore absolute/relative coordinate system after jog
+                    if (ca.command.toUpper() == "M115" && ca.tableIndex == -2) {
+                        qDebug() << "+++ M115:" << response;
+                    }
 
                     // Restore absolute/relative coordinate system after jog
                     if (ca.command.toUpper() == "$G" && ca.tableIndex == -2) {
@@ -271,13 +397,14 @@ void MarlinMachine::onReadyRead(){
 
                     response.clear();
                 } else {
-                    response.append(data + "; ");
+                    parseResponse(rcvData);
+                    qDebug() << "+++ RESPONSE:" << response;
                 }
             } else {
                 // Unprocessed responses
-                qDebug() << "floating response:" << data;
+                qDebug() << "floating response:" << rcvData;
 
-                m_ui->txtConsole->appendPlainText(data);
+                m_ui->txtConsole->appendPlainText(rcvData);
             }
         } else {
             // Blank response
@@ -302,7 +429,7 @@ void MarlinMachine::sendNextFileCommands() {
     }
 }
 
-bool MarlinMachine::dataIsEnd(QString data) {
+bool MarlinMachine::dataIsCmdResponse(QString data) {
         QStringList ends;
 
         ends << "ok";

@@ -111,10 +111,11 @@ protected:
     bool m_updateParserStatus = false;
     bool m_updateFeed = false;
 
-
     bool m_processingFile = false;
     bool m_transferCompleted = false;
     bool m_fileEndSent = false;
+
+    bool m_statusReceived = false;
 
     // Indices
     int m_fileCommandIndex;

@@ -46,7 +46,6 @@ private:
     bool m_reseting = false;
     bool m_resetCompleted = true;
     bool m_aborting = false;
-    bool m_statusReceived = false;
 };
 
 #endif // GRBLMACHINE_H

@@ -1,5 +1,4 @@
 
-#include "TestTcpServer.h"
 
 #include <unistd.h> 
 #include <stdio.h> 
@@ -7,6 +6,8 @@
 #include <stdlib.h> 
 #include <netinet/in.h> 
 #include <string.h>
+
+#include "TestTcpServer.h"
 
 #define PORT 8888 
 
@@ -83,7 +84,11 @@ int main(int argc, char const *argv[])
 
 	::usleep(10000);
 
-    	printf("%s\n",buffer );
+	if(strncmp(buffer, "M115", 4) == 0) {
+	    printf("Processing M115\n");
+	    sendM115(new_socket);
+	}
+
 	int rc = 0;
     	if((rc = send(new_socket , rMsg , sizeof(rMsg)-1, 0 )) < 0) { 
 	   printf("+++ cannot send\n");

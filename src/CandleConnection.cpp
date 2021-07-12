@@ -24,6 +24,8 @@ bool CandleConnection::openPort() {
 }
 
 int CandleConnection::write(const QByteArray& arr) {
+
+    qDebug() << "CandleConnection::write() :" << arr;
     return write(arr.data(), arr.length());
 }
 int CandleConnection::write(const QString& str) {
@@ -48,10 +50,10 @@ bool CandleConnection::canReadLine() {
 }
 QByteArray CandleConnection::readLine() {
     if(m_connType == CONN_SERIAL) {
-        return static_cast<QSerialPort*>(m_connImpl)->readLine(100);
+        return static_cast<QSerialPort*>(m_connImpl)->readLine(1024);
     } else
     if(m_connType == CONN_TCPIP) {
-        return static_cast<QTcpSocket*>(m_connImpl)->readLine(100);
+        return static_cast<QTcpSocket*>(m_connImpl)->readLine(1024);
     }
     return "";
 }
@@ -86,9 +88,10 @@ bool CandleConnection::openTcpIp() {
 
     connect(conn, &QAbstractSocket::errorOccurred, this, &CandleConnection::tcpConnError);
 
+    qDebug() << "CandleConnection::openTcpIp() connecting to:" << m_tcpHost << ":" << m_tcpPort;
     conn->connectToHost(m_tcpHost, m_tcpPort, QIODevice::ReadWrite, QAbstractSocket::IPv4Protocol);
 
-    if (!conn->waitForConnected(5)) {
+    if (!conn->waitForConnected(100)) {
         qDebug() << "Connection timeout" << conn->error() <<  conn->errorString();
     }
 
