@@ -140,6 +140,7 @@ protected:
 
     // Jog
     QVector3D m_jogVector;
+    bool m_aborting = false;
 };
 
 #endif // MACHINE_H

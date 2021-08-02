@@ -45,7 +45,6 @@ private:
     int m_lastGrblStatus;
     bool m_reseting = false;
     bool m_resetCompleted = true;
-    bool m_aborting = false;
 };
 
 #endif // GRBLMACHINE_H

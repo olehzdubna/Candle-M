@@ -87,16 +87,15 @@ void MarlinMachine::parseResponse(const QString& data) {
     m_statusReceived = true;
 
     // Update machine coordinates
-    static QRegExp mpx("X:([^\\s]*)\\sY:([^\\s]*)\\sZ:([^\\s]*)");
-    static QRegExp stx("S_XYZ:([\\d]*)");
-    static QRegExp tmcs("X:([^\\t.+]*)\\tY:([^\\t.+]*)\\t");
-    static QRegExp echx0("echo:([^:]*)");
-    static QRegExp echx1("echo:([^:]*):([^:]*)");
+    static QRegExp mpx("^X:([^\\s]*)\\sY:([^\\s]*)\\sZ:([^\\s]*)");
+    static QRegExp stx("^S_XYZ:([\\d]*)");
+    static QRegExp tmcs("^X:([^\\t.+]*)\\tY:([^\\t.+]*)\\tZ:([^\\t.+]*)");
+    static QRegExp levels("^Bed\\sX:([^\\s]*)\\sY:([^\\s]*)\\sZ:([^\\s]*)");
+    static QRegExp echx0("^echo:([^:]*)");
+    static QRegExp echx1("^echo:([^:]*):([^:]*)");
 
     if (mpx.indexIn(data) != -1) {
-
-        qDebug() << "+++ X:Y:Z: " << mpx.cap(1) << ", " << mpx.cap(2);
-
+        qDebug() << "+++ X:Y:Z: " << mpx.cap(1) << ", " << mpx.cap(2) << ", " << mpx.cap(3);
         m_ui->txtMPosX->setText(mpx.cap(1));
         m_ui->txtMPosY->setText(mpx.cap(2));
         m_ui->txtMPosZ->setText(mpx.cap(3));
@@ -105,10 +104,17 @@ void MarlinMachine::parseResponse(const QString& data) {
     if (tmcs.indexIn(data) != -1) {
         qDebug() << "+++ TMC X:Y:Z: " << tmcs.cap(1) << ", " << tmcs.cap(2) << ", " << tmcs.cap(3);
     } else
+    // Leveling status
+    if (tmcs.indexIn(data) != -1) {
+        qDebug() << "+++ Bed X:Y:Z: " << levels.cap(1) << ", " << levels.cap(2) << ", " << levels.cap(3);
+        m_leveling[0] = levels.cap(1).toDouble();
+        m_leveling[1] = levels.cap(2).toDouble();
+        m_leveling[2] = levels.cap(3).toDouble();
+    } else
     // Status
     if (stx.indexIn(data) != -1) {
 
-        qDebug() << "+++ S_XYZ: " << stx.cap(1) << ", " << stx.captureCount();
+        qDebug() << "+++ S_XYZ: " << stx.cap(1);
 
         status = stx.cap(1).toInt();
         if(status < 0 || status > m_status.size())
@@ -187,51 +193,32 @@ void MarlinMachine::onReadyRead(){
                     }
 
                     // Homing response
-                    if ((ca.command.toUpper() == "$H" || ca.command.toUpper() == "$T") && m_homing)
+                    if ((ca.command.toUpper() == "G28") && m_homing)
                         m_homing = false;
 
                     // Clear command buffer on "M2" & "M30" command (old firmwares)
-                    if ((ca.command.contains("M2") || ca.command.contains("M30")) && response.contains("ok") && !response.contains("[Pgm End]")) {
+                    if (ca.command.contains("M400") && response.contains("ok") && !response.contains("[Pgm End]")) {
                         m_commands.clear();
                         m_queue.clear();
                     }
 
                     // Process probing on heightmap mode only from table commands
-                    if (ca.command.contains("G38.2") && m_frm->heightMapMode() && ca.tableIndex > -1) {
+                    if (ca.command.contains("G29") && m_frm->heightMapMode() && ca.tableIndex > -1) {
                         // Get probe Z coordinate
-                        // "[PRB:0.000,0.000,0.000:0];ok"
-                        QRegExp rx(".*PRB:([^,]*),([^,]*),([^]^:]*)");
-                        double z = qQNaN();
-                        if (rx.indexIn(response) != -1) {
-                            qDebug() << "probing coordinates:" << rx.cap(1) << rx.cap(2) << rx.cap(3);
-                            z = toMetric(rx.cap(3).toDouble());
-                        }
+                        double z = m_leveling[2];
 
-                        static double firstZ;
-                        if (m_probeIndex == -1) {
-                            firstZ = z;
-                            z = 0;
-                        } else {
-                            // Calculate delta Z
-                            z -= firstZ;
 
-                            // Calculate table indexes
-                            int row = trunc(m_probeIndex / m_frm->heightMapModel().columnCount());
-                            int column = m_probeIndex - row * m_frm->heightMapModel().columnCount();
-                            if (row % 2) column = m_frm->heightMapModel().columnCount() - 1 - column;
+                        // Calculate table indexes
+                        int row = trunc(m_probeIndex / m_frm->heightMapModel().columnCount());
+                        int column = m_probeIndex - row * m_frm->heightMapModel().columnCount();
+                        if (row % 2) column = m_frm->heightMapModel().columnCount() - 1 - column;
 
-                            // Store Z in table
-                            m_frm->heightMapModel().setData(m_frm->heightMapModel().index(row, column), z, Qt::UserRole);
-                            m_ui->tblHeightMap->update(m_frm->heightMapModel().index(m_frm->heightMapModel().rowCount() - 1 - row, column));
-                            m_frm->updateHeightMapInterpolationDrawer();
-                        }
+                        // Store Z in table
+                        m_frm->heightMapModel().setData(m_frm->heightMapModel().index(row, column), z, Qt::UserRole);
+                        m_ui->tblHeightMap->update(m_frm->heightMapModel().index(m_frm->heightMapModel().rowCount() - 1 - row, column));
+                        m_frm->updateHeightMapInterpolationDrawer();
 
                         m_probeIndex++;
-                    }
-
-                    // Change state query time on check mode on
-                    if (ca.command.contains(QRegExp("$[cC]"))) {
-                        m_frm->timerStateQuery().setInterval(response.contains("Enable") ? 1000 : m_frm->settings()->queryStateTime());
                     }
 
                     // Add response to console
@@ -366,7 +353,7 @@ void MarlinMachine::onReadyRead(){
                                 holding = true;         // Hold transmit while messagebox is visible
                                 response.clear();
 
-                                m_connection.write(QString("!"));
+                                m_connection.write(QString("P000"));
                                 m_frm->senderErrorBox()->checkBox()->setChecked(false);
                                 qApp->beep();
                                 int result = m_frm->senderErrorBox()->exec();
@@ -375,7 +362,7 @@ void MarlinMachine::onReadyRead(){
                                 errors.clear();
                                 if (m_frm->senderErrorBox()->checkBox()->isChecked()) m_frm->settings()->setIgnoreErrors(true);
                                 if (result == QMessageBox::Ignore)
-                                    m_connection.write(QString("~"));
+                                    m_connection.write(QString("R000"));
                                 else
                                     fileAbort();
                             }
@@ -421,7 +408,7 @@ void MarlinMachine::sendNextFileCommands() {
     while ((bufferLength() + command.length() + 1) <= BUFFERLENGTH
            && m_fileCommandIndex < m_frm->currentModel()->rowCount() - 1
            && !(!m_commands.isEmpty()
-           && m_commands.last().command.contains(QRegExp("M0*2|M30")))) {
+           && m_commands.last().command.contains("M400"))) {
         m_frm->currentModel()->setData(m_frm->currentModel()->index(m_fileCommandIndex, 2), GCodeItem::Sent);
         sendCommand(command, m_fileCommandIndex, m_frm->settings()->showProgramCommands());
         m_fileCommandIndex++;
@@ -439,4 +426,33 @@ bool MarlinMachine::dataIsCmdResponse(QString data) {
         }
 
         return false;
+}
+
+void MarlinMachine::cmdHome()
+{
+    m_homing = true;
+    m_updateSpindleSpeed = true;
+    sendCommand("G28", -1, m_frm->settings()->showUICommands());
+}
+
+void MarlinMachine::cmdZeroXY()
+{
+    m_settingZeroXY = true;
+    sendCommand("G28 X Y", -1, m_frm->settings()->showUICommands());
+}
+
+void MarlinMachine::cmdZeroZ()
+{
+    m_settingZeroZ = true;
+    sendCommand("G28 Z", -1, m_frm->settings()->showUICommands());
+}
+
+void MarlinMachine::fileAbort()
+{
+    m_aborting = true;
+    if (!m_ui->chkTestMode->isChecked()) {
+        m_connection.write(QString("M11"));
+    } else {
+        machineReset();
+    }
 }
