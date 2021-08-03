@@ -2338,7 +2338,7 @@ bool frmMain::updateHeightMapGrid()
     m_programLoading = true;
     m_probeModel.clear();
     m_probeModel.insertRow(0);
-
+#if 0
     m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G21G90F%1G0Z%2").
                          arg(m_settings->heightmapProbingFeed()).arg(ui->txtHeightMapGridZTop->value()));
     m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0X0Y0"));
@@ -2347,19 +2347,31 @@ bool frmMain::updateHeightMapGrid()
                          .arg(ui->txtHeightMapGridZBottom->value()));
     m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0Z%1")
                          .arg(ui->txtHeightMapGridZTop->value()));
-
+#else
+    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G21G90F%1G0Z%2").
+                         arg(m_settings->heightmapProbingFeed()).arg(ui->txtHeightMapGridZTop->value()));
+    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0X0Y0"));
+//                         .arg(ui->txtHeightMapGridZTop->value()));
+    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G30"));
+#endif
     double x, y;
 
     for (int i = 0; i < gridPointsY; i++) {
         y = borderRect.top() + gridStepY * i;
         for (int j = 0; j < gridPointsX; j++) {
             x = borderRect.left() + gridStepX * (i % 2 ? gridPointsX - 1 - j : j);
+#if 0
             m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0X%1Y%2")
                                  .arg(x, 0, 'f', 3).arg(y, 0, 'f', 3));
             m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G38.2Z%1")
                                  .arg(ui->txtHeightMapGridZBottom->value()));
             m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0Z%1")
                                  .arg(ui->txtHeightMapGridZTop->value()));
+#else
+            m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0X%1Y%2")
+                                 .arg(x, 0, 'f', 3).arg(y, 0, 'f', 3));
+            m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G30"));
+#endif
         }
     }
 

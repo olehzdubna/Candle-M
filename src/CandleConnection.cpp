@@ -91,7 +91,7 @@ bool CandleConnection::openTcpIp() {
     qDebug() << "CandleConnection::openTcpIp() connecting to:" << m_tcpHost << ":" << m_tcpPort;
     conn->connectToHost(m_tcpHost, m_tcpPort, QIODevice::ReadWrite, QAbstractSocket::IPv4Protocol);
 
-    if (!conn->waitForConnected(100)) {
+    if (!conn->waitForConnected(1000)) {
         qDebug() << "Connection timeout" << conn->error() <<  conn->errorString();
     }
 
