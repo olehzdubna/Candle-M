@@ -105,7 +105,7 @@ void MarlinMachine::parseResponse(const QString& data) {
         qDebug() << "+++ TMC X:Y:Z: " << tmcs.cap(1) << ", " << tmcs.cap(2) << ", " << tmcs.cap(3);
     } else
     // Leveling status
-    if (tmcs.indexIn(data) != -1) {
+    if (levels.indexIn(data) != -1) {
         qDebug() << "+++ Bed X:Y:Z: " << levels.cap(1) << ", " << levels.cap(2) << ", " << levels.cap(3);
         m_leveling[0] = levels.cap(1).toDouble();
         m_leveling[1] = levels.cap(2).toDouble();

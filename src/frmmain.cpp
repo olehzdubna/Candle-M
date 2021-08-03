@@ -2353,6 +2353,7 @@ bool frmMain::updateHeightMapGrid()
     m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0X0Y0"));
 //                         .arg(ui->txtHeightMapGridZTop->value()));
     m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G30"));
+    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0Z2"));
 #endif
     double x, y;
 
@@ -2371,6 +2372,7 @@ bool frmMain::updateHeightMapGrid()
             m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0X%1Y%2")
                                  .arg(x, 0, 'f', 3).arg(y, 0, 'f', 3));
             m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G30"));
+            m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0Z2"));
 #endif
         }
     }
