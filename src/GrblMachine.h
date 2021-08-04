@@ -15,15 +15,17 @@ class GrblMachine : public Machine
 public:
     GrblMachine(frmMain *frm, Ui::frmMain *m_ui, CandleConnection& connection);
 
-    void sendCommand(QString command, int tableIndex, bool showInConsole);
+    void sendCommand(const QString& command, int tableIndex, bool showInConsole);
     void onReadyRead();
     void jogStep();
     void onTimerConnection();
     void onTimerStateQuery();
     void cmdStop();
     void cmdHome();
+    void cmdPause(bool checked);
     void cmdZeroXY();
     void cmdZeroZ();
+    void cmdProbe(int gridPointsX, int gridPointsY, const QRectF& borderRect);
     void restoreOrigin();
     void machineReset();
     void storeCoordinateSystem(bool checked);

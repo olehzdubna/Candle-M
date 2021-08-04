@@ -13,8 +13,10 @@ public:
     void onReadyRead();
     void sendNextFileCommands();
     void cmdHome();
+    void cmdPause(bool checked);
     void cmdZeroXY();
     void cmdZeroZ();
+    void cmdProbe(int gridPointsX, int gridPointsY, const QRectF& borderRect);
     void fileAbort();
 
 private:

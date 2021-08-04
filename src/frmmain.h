@@ -102,9 +102,13 @@ public:
     {return m_senderErrorBox;}
     HeightMapTableModel& heightMapModel()
     {return m_heightMapModel;}
+    GCodeTableModel& probeModel()
+    {return m_probeModel;}
     bool& heightMapMode()
     {return m_heightMapMode;}
 
+    void probingCmd();
+    
 private slots:
     void placeVisualizerButtons();
 

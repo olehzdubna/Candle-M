@@ -1714,7 +1714,7 @@ void frmMain::on_chkTestMode_clicked(bool checked)
 
 void frmMain::on_cmdFilePause_clicked(bool checked)
 {
-    m_connection.write(QString(checked ? "!" : "~"));
+    m_machine->cmdPause(checked);
 }
 
 void frmMain::on_cmdFileReset_clicked()
@@ -2330,52 +2330,13 @@ bool frmMain::updateHeightMapGrid()
     updateHeightMapInterpolationDrawer(true);
 
     // Generate probe program
-    double gridStepX = gridPointsX > 1 ? borderRect.width() / (gridPointsX - 1) : 0;
-    double gridStepY = gridPointsY > 1 ? borderRect.height() / (gridPointsY - 1) : 0;
-
     qDebug() << "generating probe program";
 
     m_programLoading = true;
     m_probeModel.clear();
     m_probeModel.insertRow(0);
-#if 0
-    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G21G90F%1G0Z%2").
-                         arg(m_settings->heightmapProbingFeed()).arg(ui->txtHeightMapGridZTop->value()));
-    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0X0Y0"));
-//                         .arg(ui->txtHeightMapGridZTop->value()));
-    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G38.2Z%1")
-                         .arg(ui->txtHeightMapGridZBottom->value()));
-    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0Z%1")
-                         .arg(ui->txtHeightMapGridZTop->value()));
-#else
-    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G21G90F%1G0Z%2").
-                         arg(m_settings->heightmapProbingFeed()).arg(ui->txtHeightMapGridZTop->value()));
-    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0X0Y0"));
-//                         .arg(ui->txtHeightMapGridZTop->value()));
-    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G30"));
-    m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0Z2"));
-#endif
-    double x, y;
 
-    for (int i = 0; i < gridPointsY; i++) {
-        y = borderRect.top() + gridStepY * i;
-        for (int j = 0; j < gridPointsX; j++) {
-            x = borderRect.left() + gridStepX * (i % 2 ? gridPointsX - 1 - j : j);
-#if 0
-            m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0X%1Y%2")
-                                 .arg(x, 0, 'f', 3).arg(y, 0, 'f', 3));
-            m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G38.2Z%1")
-                                 .arg(ui->txtHeightMapGridZBottom->value()));
-            m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0Z%1")
-                                 .arg(ui->txtHeightMapGridZTop->value()));
-#else
-            m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0X%1Y%2")
-                                 .arg(x, 0, 'f', 3).arg(y, 0, 'f', 3));
-            m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G30"));
-            m_probeModel.setData(m_probeModel.index(m_probeModel.rowCount() - 1, 1), QString("G0Z2"));
-#endif
-        }
-    }
+    m_machine->cmdProbe(gridPointsX, gridPointsY, borderRect);
 
     m_programLoading = false;
 

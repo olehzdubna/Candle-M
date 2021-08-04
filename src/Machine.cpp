@@ -28,11 +28,11 @@ bool Machine::compareCoordinates(double x, double y, double z)
 }
 
 
-void Machine::sendCommand(QString command, int tableIndex, bool showInConsole)
+void Machine::sendCommand(const QString& cmd, int tableIndex, bool showInConsole)
 {
     if (!m_connection.isOpen()) return;
 
-    command = command.toUpper();
+    QString command = cmd.toUpper();
 
     qDebug() << "+++ command:" << command;
 

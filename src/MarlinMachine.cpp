@@ -456,3 +456,20 @@ void MarlinMachine::fileAbort()
         machineReset();
     }
 }
+
+void MarlinMachine::cmdPause(bool checked)
+{
+    m_connection.write(QString(checked ? "P000" : "R000"));
+}
+
+void MarlinMachine::cmdProbe(int gridPointsX, int gridPointsY, const QRectF &borderRect)
+{
+    sendCommand(QString("G29 X% Y% L% R% F% B% V4")
+                .arg(gridPointsX)
+                .arg(gridPointsY)
+                .arg(borderRect.left(), 0, 'f', 3)
+                .arg(borderRect.right(), 0, 'f', 3)
+                .arg(borderRect.bottom(), 0, 'f', 3)
+                .arg(borderRect.top(), 0, 'f', 3)
+                , -1);
+}

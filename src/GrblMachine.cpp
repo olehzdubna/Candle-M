@@ -61,7 +61,7 @@ bool GrblMachine::dataIsReset(QString data) {
     return QRegExp("^GRBL|GCARVIN\\s\\d\\.\\d.").indexIn(data.toUpper()) != -1;
 }
 
-void GrblMachine::sendCommand(QString command, int tableIndex, bool showInConsole = false) {
+void GrblMachine::sendCommand(const QString &command, int tableIndex, bool showInConsole = false) {
    if (!m_resetCompleted)
       return;
 
@@ -893,3 +893,38 @@ void GrblMachine::fileAbort()
         machineReset();
     }
 }
+
+void GrblMachine::cmdPause(bool checked)
+{
+    m_connection.write(QString(checked ? "!" : "~"));
+}
+
+void GrblMachine::cmdProbe(int gridPointsX, int gridPointsY, const QRectF& borderRect)
+{
+    double gridStepX = gridPointsX > 1 ? borderRect.width() / (gridPointsX - 1) : 0;
+    double gridStepY = gridPointsY > 1 ? borderRect.height() / (gridPointsY - 1) : 0;
+
+    m_frm->probeModel().setData(m_frm->probeModel().index(m_frm->probeModel().rowCount() - 1, 1), QString("G21G90F%1G0Z%2").
+                         arg(m_frm->settings()->heightmapProbingFeed()).arg(m_ui->txtHeightMapGridZTop->value()));
+    m_frm->probeModel().setData(m_frm->probeModel().index(m_frm->probeModel().rowCount() - 1, 1), QString("G0X0Y0"));
+//                         .arg(ui->txtHeightMapGridZTop->value()));
+    m_frm->probeModel().setData(m_frm->probeModel().index(m_frm->probeModel().rowCount() - 1, 1), QString("G38.2Z%1")
+                         .arg(m_ui->txtHeightMapGridZBottom->value()));
+    m_frm->probeModel().setData(m_frm->probeModel().index(m_frm->probeModel().rowCount() - 1, 1), QString("G0Z%1")
+                         .arg(m_ui->txtHeightMapGridZTop->value()));
+    double x, y;
+
+    for (int i = 0; i < gridPointsY; i++) {
+        y = borderRect.top() + gridStepY * i;
+        for (int j = 0; j < gridPointsX; j++) {
+            x = borderRect.left() + gridStepX * (i % 2 ? gridPointsX - 1 - j : j);
+            m_frm->probeModel().setData(m_frm->probeModel().index(m_frm->probeModel().rowCount() - 1, 1), QString("G0X%1Y%2")
+                                 .arg(x, 0, 'f', 3).arg(y, 0, 'f', 3));
+            m_frm->probeModel().setData(m_frm->probeModel().index(m_frm->probeModel().rowCount() - 1, 1), QString("G38.2Z%1")
+                                 .arg(m_ui->txtHeightMapGridZBottom->value()));
+            m_frm->probeModel().setData(m_frm->probeModel().index(m_frm->probeModel().rowCount() - 1, 1), QString("G0Z%1")
+                                 .arg(m_ui->txtHeightMapGridZTop->value()));
+        }
+    }
+}
+

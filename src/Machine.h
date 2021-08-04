@@ -59,7 +59,7 @@ public:
     {return m_jogVector;}
 
     virtual void sendNextFileCommands();
-    virtual void sendCommand(QString command, int tableIndex, bool showInConsole=false);
+    virtual void sendCommand(const QString& command, int tableIndex, bool showInConsole=false);
     virtual void onReadyRead();
     virtual void onCommError(int error);
     virtual void storeParserState();
@@ -71,6 +71,7 @@ public:
     virtual void cmdStop();
     virtual void cmdCommandSend();
     virtual void cmdHome();
+    virtual void cmdPause(bool checked) = 0;
     virtual void cmdZeroXY();
     virtual void cmdZeroZ();
     virtual void restoreOrigin();
@@ -80,6 +81,7 @@ public:
     virtual void cmdSpindle(bool checked);
     virtual void fileAbort();
     virtual void testMode(bool checked);
+    virtual void cmdProbe(int gridPointsX, int gridPointsY, const QRectF& borderRect) = 0;
 
 protected:
 
