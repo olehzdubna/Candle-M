@@ -80,11 +80,6 @@ MarlinMachine::MarlinMachine(frmMain* frm, Ui::frmMain* ui, CandleConnection& co
 }
 
 void MarlinMachine::parseResponse(const QString& data) {
-    int status = UNKNOWN;
-
-    qDebug() << "+++ parseResponse: " << data;
-
-    m_statusReceived = true;
 
     // Update machine coordinates
     static QRegExp mpx("^X:([^\\s]*)\\sY:([^\\s]*)\\sZ:([^\\s]*)");
@@ -93,6 +88,12 @@ void MarlinMachine::parseResponse(const QString& data) {
     static QRegExp levels("^Bed\\sX:\\s([^\\s]*)\\sY:\\s([^\\s]*)\\sZ:\\s([^\\s]*)");
     static QRegExp echx0("^echo:([^:]*)");
     static QRegExp echx1("^echo:([^:]*):([^:]*)");
+
+    int status = UNKNOWN;
+
+    qDebug() << "+++ parseResponse: " << data;
+
+    m_statusReceived = true;
 
     if (mpx.indexIn(data) != -1) {
         qDebug() << "+++ X:Y:Z: " << mpx.cap(1) << ", " << mpx.cap(2) << ", " << mpx.cap(3);
@@ -107,9 +108,34 @@ void MarlinMachine::parseResponse(const QString& data) {
     // Leveling status
     if (levels.indexIn(data) != -1) {
         qDebug() << "+++ Bed X:Y:Z: " << levels.cap(1) << ", " << levels.cap(2) << ", " << levels.cap(3);
-        m_leveling[0] = levels.cap(1).toDouble();
-        m_leveling[1] = levels.cap(2).toDouble();
-        m_leveling[2] = levels.cap(3).toDouble();
+
+        if(!m_commands.isEmpty()) {
+           CommandAttributes& ca = m_commands.first();
+
+           // Process probing on heightmap mode only from table commands
+           if(ca.command.contains("G29")
+           && m_frm->heightMapMode() && ca.tableIndex > -1) {
+            // Take command from buffer
+
+//            double x = levels.cap(1).toDouble();
+//            double y = levels.cap(2).toDouble();
+
+                // Get probe Z coordinate
+                double z = levels.cap(3).toDouble();
+
+                // Calculate table indexes
+                int row = trunc(m_probeIndex / m_frm->heightMapModel().columnCount());
+                int column = m_probeIndex - row * m_frm->heightMapModel().columnCount();
+                if (row % 2) column = m_frm->heightMapModel().columnCount() - 1 - column;
+
+                // Store Z in table
+                m_frm->heightMapModel().setData(m_frm->heightMapModel().index(row, column), z, Qt::UserRole);
+                m_ui->tblHeightMap->update(m_frm->heightMapModel().index(m_frm->heightMapModel().rowCount() - 1 - row, column));
+                m_frm->updateHeightMapInterpolationDrawer();
+
+                m_probeIndex++;
+            }
+        }
     } else
     // Status
     if (stx.indexIn(data) != -1) {
@@ -200,25 +226,6 @@ void MarlinMachine::onReadyRead(){
                     if (ca.command.contains("M400") && response.contains("ok") && !response.contains("[Pgm End]")) {
                         m_commands.clear();
                         m_queue.clear();
-                    }
-
-                    // Process probing on heightmap mode only from table commands
-                    if (ca.command.contains("G29") && m_frm->heightMapMode() && ca.tableIndex > -1) {
-                        // Get probe Z coordinate
-                        double z = m_leveling[2];
-
-
-                        // Calculate table indexes
-                        int row = trunc(m_probeIndex / m_frm->heightMapModel().columnCount());
-                        int column = m_probeIndex - row * m_frm->heightMapModel().columnCount();
-                        if (row % 2) column = m_frm->heightMapModel().columnCount() - 1 - column;
-
-                        // Store Z in table
-                        m_frm->heightMapModel().setData(m_frm->heightMapModel().index(row, column), z, Qt::UserRole);
-                        m_ui->tblHeightMap->update(m_frm->heightMapModel().index(m_frm->heightMapModel().rowCount() - 1 - row, column));
-                        m_frm->updateHeightMapInterpolationDrawer();
-
-                        m_probeIndex++;
                     }
 
                     // Add response to console
@@ -464,22 +471,15 @@ void MarlinMachine::cmdPause(bool checked)
 
 void MarlinMachine::cmdProbe(int gridPointsX, int gridPointsY, const QRectF &borderRect)
 {
-/*
-    sendCommand(QString("G29 X% Y% L% R% F% B% V4")
-                .arg(gridPointsX)
-                .arg(gridPointsY)
-                .arg(borderRect.left(), 0, 'f', 3)
-                .arg(borderRect.right(), 0, 'f', 3)
-                .arg(borderRect.bottom(), 0, 'f', 3)
-                .arg(borderRect.top(), 0, 'f', 3)
-                , -1);
-*/
-    qDebug() << "G29: " << gridPointsX << ", " << gridPointsY << ", " << borderRect.left() << ", " << borderRect.right() << ", " << borderRect.bottom() << ", " << borderRect.bottom();
-    qDebug() << QString("G29 X%1 Y%2 L%3 R%4 F%5 B%6 V3")
-                .arg(gridPointsX)
-                .arg(gridPointsY)
-                .arg(borderRect.left(), 0, 'f', 3)
-                .arg(borderRect.right(), 0, 'f', 3)
-                .arg(borderRect.bottom(), 0, 'f', 3)
-                .arg(borderRect.top(), 0, 'f', 3);
+    m_frm->probeModel().setData(m_frm->probeModel().index(m_frm->probeModel().rowCount() - 1, 1), QString("G21G90F%1G0Z%2").
+                         arg(m_frm->settings()->heightmapProbingFeed()).arg(m_ui->txtHeightMapGridZTop->value()));
+    m_frm->probeModel().setData(m_frm->probeModel().index(m_frm->probeModel().rowCount() - 1, 1), QString("G29 X%1 Y%2 L%3 R%4 F%5 B%6 V3")
+                                .arg(gridPointsX)
+                                .arg(gridPointsY)
+                                .arg(borderRect.left(), 0, 'f', 3)
+                                .arg(borderRect.right(), 0, 'f', 3)
+                                .arg(borderRect.bottom(), 0, 'f', 3)
+                                .arg(borderRect.top(), 0, 'f', 3));
+
 }
+

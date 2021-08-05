@@ -26,7 +26,6 @@ private:
 private:
     QString response; // Full response string
     int m_lastMarlinStatus;
-    double m_leveling[3];
 };
 
 #endif // MARLINMACHINE_H
