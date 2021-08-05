@@ -90,7 +90,7 @@ void MarlinMachine::parseResponse(const QString& data) {
     static QRegExp mpx("^X:([^\\s]*)\\sY:([^\\s]*)\\sZ:([^\\s]*)");
     static QRegExp stx("^S_XYZ:([\\d]*)");
     static QRegExp tmcs("^X:([^\\t.+]*)\\tY:([^\\t.+]*)\\tZ:([^\\t.+]*)");
-    static QRegExp levels("^Bed\\sX:([^\\s]*)\\sY:([^\\s]*)\\sZ:([^\\s]*)");
+    static QRegExp levels("^Bed\\sX:\\s([^\\s]*)\\sY:\\s([^\\s]*)\\sZ:\\s([^\\s]*)");
     static QRegExp echx0("^echo:([^:]*)");
     static QRegExp echx1("^echo:([^:]*):([^:]*)");
 
@@ -464,6 +464,7 @@ void MarlinMachine::cmdPause(bool checked)
 
 void MarlinMachine::cmdProbe(int gridPointsX, int gridPointsY, const QRectF &borderRect)
 {
+/*
     sendCommand(QString("G29 X% Y% L% R% F% B% V4")
                 .arg(gridPointsX)
                 .arg(gridPointsY)
@@ -472,4 +473,13 @@ void MarlinMachine::cmdProbe(int gridPointsX, int gridPointsY, const QRectF &bor
                 .arg(borderRect.bottom(), 0, 'f', 3)
                 .arg(borderRect.top(), 0, 'f', 3)
                 , -1);
+*/
+    qDebug() << "G29: " << gridPointsX << ", " << gridPointsY << ", " << borderRect.left() << ", " << borderRect.right() << ", " << borderRect.bottom() << ", " << borderRect.bottom();
+    qDebug() << QString("G29 X%1 Y%2 L%3 R%4 F%5 B%6 V3")
+                .arg(gridPointsX)
+                .arg(gridPointsY)
+                .arg(borderRect.left(), 0, 'f', 3)
+                .arg(borderRect.right(), 0, 'f', 3)
+                .arg(borderRect.bottom(), 0, 'f', 3)
+                .arg(borderRect.top(), 0, 'f', 3);
 }
