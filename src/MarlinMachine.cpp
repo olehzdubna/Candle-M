@@ -286,19 +286,23 @@ void MarlinMachine::onReadyRead(){
                         //m_lastDrawnLineIndex = m_frm->currentModel()->data(m_frm->currentModel()->index(m_fileProcessedCommandIndex, 4)).toInt();
                         m_lastDrawnLineIndex = m_fileProcessedCommandIndex;
 
-                        auto vec = list.at(m_lastDrawnLineIndex)->getStart();
+                        if (m_lastDrawnLineIndex < list.size()) {
 
-                        m_ui->txtMPosX->setText(QString::number(vec.x(), 'f', 3));
-                        m_ui->txtMPosY->setText(QString::number(vec.y(), 'f', 3));
-                        m_ui->txtMPosZ->setText(QString::number(vec.z(), 'f', 3));
+                            auto vec = list.at(m_lastDrawnLineIndex)->getStart();
 
-                        workOffset = QVector3D(0.0, 0.0, 0.0);
+                            m_ui->txtMPosX->setText(QString::number(vec.x(), 'f', 3));
+                            m_ui->txtMPosY->setText(QString::number(vec.y(), 'f', 3));
+                            m_ui->txtMPosZ->setText(QString::number(vec.z(), 'f', 3));
 
-                        // Update work coordinates
-                        int prec = m_frm->settings()->units() == 0 ? 3 : 4;
-                        m_ui->txtWPosX->setText(QString::number(m_ui->txtMPosX->text().toDouble() - workOffset.x(), 'f', prec));
-                        m_ui->txtWPosY->setText(QString::number(m_ui->txtMPosY->text().toDouble() - workOffset.y(), 'f', prec));
-                        m_ui->txtWPosZ->setText(QString::number(m_ui->txtMPosZ->text().toDouble() - workOffset.z(), 'f', prec));
+                            workOffset = QVector3D(0.0, 0.0, 0.0);
+
+                            // Update work coordinates
+                            int prec = m_frm->settings()->units() == 0 ? 3 : 4;
+                            m_ui->txtWPosX->setText(QString::number(m_ui->txtMPosX->text().toDouble() - workOffset.x(), 'f', prec));
+                            m_ui->txtWPosY->setText(QString::number(m_ui->txtMPosY->text().toDouble() - workOffset.y(), 'f', prec));
+                            m_ui->txtWPosZ->setText(QString::number(m_ui->txtMPosZ->text().toDouble() - workOffset.z(), 'f', prec));
+
+                        }
 
                         // Update tool position
                         QVector3D toolPosition;
@@ -481,5 +485,6 @@ void MarlinMachine::cmdProbe(int gridPointsX, int gridPointsY, const QRectF &bor
                                 .arg(borderRect.bottom(), 0, 'f', 3)
                                 .arg(borderRect.top(), 0, 'f', 3));
 
+    m_probeIndex = 0;
 }
 
