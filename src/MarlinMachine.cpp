@@ -12,22 +12,6 @@
 MarlinMachine::MarlinMachine(frmMain* frm, Ui::frmMain* ui, CandleConnection& connection)
     : Machine(frm, ui, connection)
 {
-    // From Marlin code.
-    enum M_StateEnum : int8_t {
-      M_INIT = 0, //  0 machine is initializing
-      M_RESET,    //  1 machine is ready for use
-      M_ALARM,    //  2 machine is in alarm state (soft shut down)
-      M_IDLE,     //  3 program stop or no more blocks (M0, M1, M60)
-      M_END,      //  4 program end via M2, M30
-      M_RUNNING,  //  5 motion is running
-      M_HOLD,     //  6 motion is holding
-      M_PROBE,    //  7 probe cycle active
-      M_CYCLING,  //  8 machine is running (cycling)
-      M_HOMING,   //  9 machine is homing
-      M_JOGGING,  // 10 machine is jogging
-      M_ERROR     // 11 machine is in hard alarm state (shut down)
-    };
-
     m_status << "Init"
              << "Reset"
              << "Alarm"
@@ -85,16 +69,45 @@ void MarlinMachine::parseResponse(const QString& data) {
     static QRegExp mpx("^X:([^\\s]*)\\sY:([^\\s]*)\\sZ:([^\\s]*)");
     static QRegExp stx("^S_XYZ:([\\d]*)");
     static QRegExp tmcs("^X:([^\\t.+]*)\\tY:([^\\t.+]*)\\tZ:([^\\t.+]*)");
-    static QRegExp levels("^Bed\\sX:\\s([^\\s]*)\\sY:\\s([^\\s]*)\\sZ:\\s([^\\s]*)");
     static QRegExp echx0("^echo:([^:]*)");
     static QRegExp echx1("^echo:([^:]*):([^:]*)");
 
-    int status = UNKNOWN;
+    int status = M_INIT;
 
     qDebug() << "+++ parseResponse: " << data;
 
     m_statusReceived = true;
 
+    // Leveling status
+    // Process probing on heightmap mode only from table commands
+    if(!m_commands.isEmpty()
+        && m_commands.first().command.contains("G29")
+        && m_frm->heightMapMode()
+        && m_commands.first().tableIndex > -1) {
+
+        static QRegExp levels("^Bed\\sX:\\s([^\\s]*)\\sY:\\s([^\\s]*)\\sZ:\\s([^\\s]*)");
+
+        if (levels.indexIn(data) != -1) {
+            qDebug() << "+++ Bed X:Y:Z: " << levels.cap(1) << ", " << levels.cap(2) << ", " << levels.cap(3);
+            //            double x = levels.cap(1).toDouble();
+            //            double y = levels.cap(2).toDouble();
+
+            // Get probe Z coordinate
+            double z = levels.cap(3).toDouble();
+
+            // Calculate table indexes
+            int row = trunc(m_probeIndex / m_frm->heightMapModel().columnCount());
+            int column = m_probeIndex - row * m_frm->heightMapModel().columnCount();
+            if (row % 2) column = m_frm->heightMapModel().columnCount() - 1 - column;
+
+            // Store Z in table
+            m_frm->heightMapModel().setData(m_frm->heightMapModel().index(row, column), z, Qt::UserRole);
+            m_ui->tblHeightMap->update(m_frm->heightMapModel().index(m_frm->heightMapModel().rowCount() - 1 - row, column));
+            m_frm->updateHeightMapInterpolationDrawer();
+
+            m_probeIndex++;
+        }
+    } else
     if (mpx.indexIn(data) != -1) {
         qDebug() << "+++ X:Y:Z: " << mpx.cap(1) << ", " << mpx.cap(2) << ", " << mpx.cap(3);
         m_ui->txtMPosX->setText(mpx.cap(1));
@@ -104,38 +117,6 @@ void MarlinMachine::parseResponse(const QString& data) {
     // TMC driver status
     if (tmcs.indexIn(data) != -1) {
         qDebug() << "+++ TMC X:Y:Z: " << tmcs.cap(1) << ", " << tmcs.cap(2) << ", " << tmcs.cap(3);
-    } else
-    // Leveling status
-    if (levels.indexIn(data) != -1) {
-        qDebug() << "+++ Bed X:Y:Z: " << levels.cap(1) << ", " << levels.cap(2) << ", " << levels.cap(3);
-
-        if(!m_commands.isEmpty()) {
-           CommandAttributes& ca = m_commands.first();
-
-           // Process probing on heightmap mode only from table commands
-           if(ca.command.contains("G29")
-           && m_frm->heightMapMode() && ca.tableIndex > -1) {
-            // Take command from buffer
-
-//            double x = levels.cap(1).toDouble();
-//            double y = levels.cap(2).toDouble();
-
-                // Get probe Z coordinate
-                double z = levels.cap(3).toDouble();
-
-                // Calculate table indexes
-                int row = trunc(m_probeIndex / m_frm->heightMapModel().columnCount());
-                int column = m_probeIndex - row * m_frm->heightMapModel().columnCount();
-                if (row % 2) column = m_frm->heightMapModel().columnCount() - 1 - column;
-
-                // Store Z in table
-                m_frm->heightMapModel().setData(m_frm->heightMapModel().index(row, column), z, Qt::UserRole);
-                m_ui->tblHeightMap->update(m_frm->heightMapModel().index(m_frm->heightMapModel().rowCount() - 1 - row, column));
-                m_frm->updateHeightMapInterpolationDrawer();
-
-                m_probeIndex++;
-            }
-        }
     } else
     // Status
     if (stx.indexIn(data) != -1) {
@@ -151,6 +132,63 @@ void MarlinMachine::parseResponse(const QString& data) {
             m_ui->txtStatus->setText(m_statusCaptions[status]);
             m_ui->txtStatus->setStyleSheet(QString("background-color: %1; color: %2;")
                                          .arg(m_statusBackColors[status]).arg(m_statusForeColors[status]));
+        }
+
+        // Update controls
+        m_ui->cmdRestoreOrigin->setEnabled(status == M_IDLE);
+        m_ui->cmdSafePosition->setEnabled(status == M_IDLE);
+        m_ui->cmdZeroXY->setEnabled(status == M_IDLE);
+        m_ui->cmdZeroZ->setEnabled(status == M_IDLE);
+        m_ui->chkTestMode->setEnabled(status != M_RUNNING && !m_processingFile);
+        m_ui->cmdFilePause->setChecked(status == M_HOLD);
+        m_ui->cmdSpindle->setEnabled(!m_processingFile || status == M_HOLD);
+#ifdef WINDOWS
+        if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7) {
+            if (m_taskBarProgress) m_taskBarProgress->setPaused(status == HOLD0 || status == HOLD1 || status == QUEUE);
+        }
+#endif
+
+        // Update "elapsed time" timer
+        if (m_processingFile) {
+            QTime time(0, 0, 0);
+            int elapsed = m_frm->startTime().elapsed();
+            m_ui->glwVisualizer->setSpendTime(time.addMSecs(elapsed));
+        }
+
+
+        // Test for job complete
+        if (m_processingFile && m_transferCompleted &&
+                (status == M_IDLE && m_lastMarlinStatus == M_RUNNING) ) {
+
+            qDebug() << "job completed:" << m_fileCommandIndex << m_frm->currentModel()->rowCount() - 1;
+
+            // Shadow last segment
+            GcodeViewParse *parser = m_frm->currentDrawer()->viewParser();
+            QList<LineSegment*> list = parser->getLineSegmentList();
+            if (m_lastDrawnLineIndex < list.count()) {
+                list[m_lastDrawnLineIndex]->setDrawn(true);
+                m_frm->currentDrawer()->update(QList<int>() << m_lastDrawnLineIndex);
+            }
+
+            // Update state
+            m_processingFile = false;
+            m_fileProcessedCommandIndex = 0;
+            m_lastDrawnLineIndex = 0;
+            m_storedParserStatus.clear();
+
+            m_frm->updateControlsState();
+
+            qApp->beep();
+
+            m_frm->timerStateQuery().stop();
+            m_frm->timerConnection().stop();
+
+            QMessageBox::information((QWidget*)m_frm, qApp->applicationDisplayName(), tr("Job done.\nTime elapsed: %1")
+                                     .arg(m_ui->glwVisualizer->spendTime().toString("hh:mm:ss")));
+
+            m_frm->timerStateQuery().setInterval(m_frm->settings()->queryStateTime());
+            m_frm->timerConnection().start();
+            m_frm->timerStateQuery().start();
         }
 
         m_lastMarlinStatus = status;
