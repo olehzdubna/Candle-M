@@ -63,6 +63,43 @@ MarlinMachine::MarlinMachine(frmMain* frm, Ui::frmMain* ui, CandleConnection& co
                       << "white";
 }
 
+void MarlinMachine::endOfRunProc()
+{
+    // Test for job complete
+    if (m_processingFile && m_transferCompleted && m_endOfRun ) {
+
+        qDebug() << "job completed:" << m_fileCommandIndex << m_frm->currentModel()->rowCount() - 1;
+
+        // Shadow last segment
+        GcodeViewParse *parser = m_frm->currentDrawer()->viewParser();
+        QList<LineSegment*> list = parser->getLineSegmentList();
+        if (m_lastDrawnLineIndex < list.count()) {
+            list[m_lastDrawnLineIndex]->setDrawn(true);
+            m_frm->currentDrawer()->update(QList<int>() << m_lastDrawnLineIndex);
+        }
+
+        // Update state
+        m_processingFile = false;
+        m_fileProcessedCommandIndex = 0;
+        m_lastDrawnLineIndex = 0;
+        m_storedParserStatus.clear();
+
+        m_frm->updateControlsState();
+
+        qApp->beep();
+
+        m_frm->timerStateQuery().stop();
+        m_frm->timerConnection().stop();
+
+        QMessageBox::information((QWidget*)m_frm, qApp->applicationDisplayName(), tr("Job done.\nTime elapsed: %1")
+                                 .arg(m_ui->glwVisualizer->spendTime().toString("hh:mm:ss")));
+
+        m_frm->timerStateQuery().setInterval(m_frm->settings()->queryStateTime());
+        m_frm->timerConnection().start();
+        m_frm->timerStateQuery().start();
+    }
+}
+
 void MarlinMachine::parseResponse(const QString& data) {
 
     // Update machine coordinates
@@ -76,8 +113,52 @@ void MarlinMachine::parseResponse(const QString& data) {
 
     qDebug() << "+++ parseResponse: " << data;
 
-    m_statusReceived = true;
+    // Status
+    if (stx.indexIn(data) != -1) {
 
+        m_statusReceived = true;
+
+        qDebug() << "+++ S_XYZ: " << stx.cap(1);
+
+        status = stx.cap(1).toInt();
+        if(status < 0 || status > m_status.size())
+                status = 0;
+
+        // Update status
+        if (status != m_lastMarlinStatus) {
+            m_ui->txtStatus->setText(m_statusCaptions[status]);
+            m_ui->txtStatus->setStyleSheet(QString("background-color: %1; color: %2;")
+                                         .arg(m_statusBackColors[status]).arg(m_statusForeColors[status]));
+        }
+
+        // Update controls
+        m_ui->cmdRestoreOrigin->setEnabled(status == M_IDLE);
+        m_ui->cmdSafePosition->setEnabled(status == M_IDLE);
+        m_ui->cmdZeroXY->setEnabled(status == M_IDLE);
+        m_ui->cmdZeroZ->setEnabled(status == M_IDLE);
+        m_ui->chkTestMode->setEnabled(status != M_RUNNING && !m_processingFile);
+        m_ui->cmdFilePause->setChecked(status == M_HOLD);
+        m_ui->cmdSpindle->setEnabled(!m_processingFile || status == M_HOLD);
+#ifdef WINDOWS
+        if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7) {
+            if (m_taskBarProgress) m_taskBarProgress->setPaused(status == HOLD0 || status == HOLD1 || status == QUEUE);
+        }
+#endif
+
+        // Update "elapsed time" timer
+        if (m_processingFile) {
+            QTime time(0, 0, 0);
+            int elapsed = m_frm->startTime().elapsed();
+            m_ui->glwVisualizer->setSpendTime(time.addMSecs(elapsed));
+        }
+
+        qDebug() << "+++ STATS, m_processingFile: " << m_processingFile << ", m_transferCompleted:" << m_transferCompleted;
+
+        m_endOfRun = status == M_IDLE && (m_lastMarlinStatus == M_RUNNING || m_lastMarlinStatus == M_PROBE);
+
+        m_lastMarlinStatus = status;
+    }
+    else
     // Leveling status
     // Process probing on heightmap mode only from table commands
     if(!m_commands.isEmpty()
@@ -117,81 +198,6 @@ void MarlinMachine::parseResponse(const QString& data) {
     // TMC driver status
     if (tmcs.indexIn(data) != -1) {
         qDebug() << "+++ TMC X:Y:Z: " << tmcs.cap(1) << ", " << tmcs.cap(2) << ", " << tmcs.cap(3);
-    } else
-    // Status
-    if (stx.indexIn(data) != -1) {
-
-        qDebug() << "+++ S_XYZ: " << stx.cap(1);
-
-        status = stx.cap(1).toInt();
-        if(status < 0 || status > m_status.size())
-                status = 0;
-
-        // Update status
-        if (status != m_lastMarlinStatus) {
-            m_ui->txtStatus->setText(m_statusCaptions[status]);
-            m_ui->txtStatus->setStyleSheet(QString("background-color: %1; color: %2;")
-                                         .arg(m_statusBackColors[status]).arg(m_statusForeColors[status]));
-        }
-
-        // Update controls
-        m_ui->cmdRestoreOrigin->setEnabled(status == M_IDLE);
-        m_ui->cmdSafePosition->setEnabled(status == M_IDLE);
-        m_ui->cmdZeroXY->setEnabled(status == M_IDLE);
-        m_ui->cmdZeroZ->setEnabled(status == M_IDLE);
-        m_ui->chkTestMode->setEnabled(status != M_RUNNING && !m_processingFile);
-        m_ui->cmdFilePause->setChecked(status == M_HOLD);
-        m_ui->cmdSpindle->setEnabled(!m_processingFile || status == M_HOLD);
-#ifdef WINDOWS
-        if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7) {
-            if (m_taskBarProgress) m_taskBarProgress->setPaused(status == HOLD0 || status == HOLD1 || status == QUEUE);
-        }
-#endif
-
-        // Update "elapsed time" timer
-        if (m_processingFile) {
-            QTime time(0, 0, 0);
-            int elapsed = m_frm->startTime().elapsed();
-            m_ui->glwVisualizer->setSpendTime(time.addMSecs(elapsed));
-        }
-
-
-        // Test for job complete
-        if (m_processingFile && m_transferCompleted &&
-                (status == M_IDLE && m_lastMarlinStatus == M_RUNNING) ) {
-
-            qDebug() << "job completed:" << m_fileCommandIndex << m_frm->currentModel()->rowCount() - 1;
-
-            // Shadow last segment
-            GcodeViewParse *parser = m_frm->currentDrawer()->viewParser();
-            QList<LineSegment*> list = parser->getLineSegmentList();
-            if (m_lastDrawnLineIndex < list.count()) {
-                list[m_lastDrawnLineIndex]->setDrawn(true);
-                m_frm->currentDrawer()->update(QList<int>() << m_lastDrawnLineIndex);
-            }
-
-            // Update state
-            m_processingFile = false;
-            m_fileProcessedCommandIndex = 0;
-            m_lastDrawnLineIndex = 0;
-            m_storedParserStatus.clear();
-
-            m_frm->updateControlsState();
-
-            qApp->beep();
-
-            m_frm->timerStateQuery().stop();
-            m_frm->timerConnection().stop();
-
-            QMessageBox::information((QWidget*)m_frm, qApp->applicationDisplayName(), tr("Job done.\nTime elapsed: %1")
-                                     .arg(m_ui->glwVisualizer->spendTime().toString("hh:mm:ss")));
-
-            m_frm->timerStateQuery().setInterval(m_frm->settings()->queryStateTime());
-            m_frm->timerConnection().start();
-            m_frm->timerStateQuery().start();
-        }
-
-        m_lastMarlinStatus = status;
     } else
     if (echx0.indexIn(data) != -1) {
         qDebug() << "+++ ECHO: " << echx0.cap(1) << ", " << echx0.captureCount();
@@ -417,14 +423,21 @@ void MarlinMachine::onReadyRead(){
                             }
                         }
 
+                        qDebug() << "+++ EOF: m_fileProcessedCommandIndex " << m_fileProcessedCommandIndex << ", m_frm->currentModel()->rowCount() " << m_frm->currentModel()->rowCount();
+
                         // Check transfer complete (last row always blank, last command row = rowcount - 2)
                         if (m_fileProcessedCommandIndex == m_frm->currentModel()->rowCount() - 2
-                                || ca.command.contains(QRegExp("M0*2|M30"))) m_transferCompleted = true;
+                            || ca.command.contains(QRegExp("M400"))) {
+                                m_transferCompleted = true;
+                                endOfRunProc();
+                        }
                         // Send next program commands
                         else
                             if(!m_fileEndSent
-                               && (m_fileCommandIndex < m_frm->currentModel()->rowCount()) && !holding)
+                               && (m_fileCommandIndex < m_frm->currentModel()->rowCount())
+                               && !holding) {
                                 sendNextFileCommands();
+                            }
                     }
 
                     // Scroll to first line on "M30" command
@@ -500,7 +513,7 @@ void MarlinMachine::fileAbort()
 {
     m_aborting = true;
     if (!m_ui->chkTestMode->isChecked()) {
-        m_connection.write(QString("M11"));
+        m_connection.write(QString("M112"));
     } else {
         machineReset();
     }
@@ -524,5 +537,6 @@ void MarlinMachine::cmdProbe(int gridPointsX, int gridPointsY, const QRectF &bor
                                 .arg(borderRect.top(), 0, 'f', 3));
 
     m_probeIndex = 0;
+    m_endOfRun = false;
 }
 

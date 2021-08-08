@@ -1036,20 +1036,22 @@ void frmMain::loadFile(QList<QString> data)
         if (!trimmed.isEmpty()) {
             // Split command
             stripped = GcodePreprocessorUtils::removeComment(command);
-            args = GcodePreprocessorUtils::splitCommand(stripped);
+            if(!stripped.isEmpty()) {
+                args = GcodePreprocessorUtils::splitCommand(stripped);
 
-//            PointSegment *ps = gp.addCommand(args);
-            gp.addCommand(args);
+                //            PointSegment *ps = gp.addCommand(args);
+                gp.addCommand(args);
 
-    //        if (ps && (qIsNaN(ps->point()->x()) || qIsNaN(ps->point()->y()) || qIsNaN(ps->point()->z())))
-    //                   qDebug() << "nan point segment added:" << *ps->point();
+                //        if (ps && (qIsNaN(ps->point()->x()) || qIsNaN(ps->point()->y()) || qIsNaN(ps->point()->z())))
+                //                   qDebug() << "nan point segment added:" << *ps->point();
 
-            item.command = trimmed;
-            item.state = GCodeItem::InQueue;
-            item.line = gp.getCommandNumber();
-            item.args = args;
+                item.command = trimmed;
+                item.state = GCodeItem::InQueue;
+                item.line = gp.getCommandNumber();
+                item.args = args;
 
-            m_programModel.data().append(item);
+                m_programModel.data().append(item);
+            }
         }
 
         if (progress.isVisible() && (data.count() % PROGRESSSTEP == 0)) {

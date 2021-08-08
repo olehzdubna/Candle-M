@@ -34,6 +34,8 @@ public:
     void cmdProbe(int gridPointsX, int gridPointsY, const QRectF& borderRect);
     void fileAbort();
 
+    void endOfRunProc();
+
 private:
     void parseResponse(const QString& val);
     bool dataIsCmdResponse(QString data);
@@ -41,6 +43,7 @@ private:
 private:
     QString response; // Full response string
     int m_lastMarlinStatus;
+    bool m_endOfRun;
 };
 
 #endif // MARLINMACHINE_H
